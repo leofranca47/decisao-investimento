@@ -8,13 +8,13 @@ Aplicação web pessoal para apoio à decisão de alocação mensal de aportes f
 
 - **Backend:** Laravel 11 (PHP 8.3)
 - **Painel & Interface:** Filament v3 (recursos e páginas nativas em português)
-- **Banco de Dados Principal:** PostgreSQL 16 (com tipos `decimal/numeric` para precisão financeira e `jsonb` para metadados)
+- **Banco de Dados Principal:** PostgreSQL 16 com extensão vetorial **`pgvector`** (dimensões 768, índice HNSW de distância por cosseno e tipos `decimal/numeric` para precisão financeira estrita)
 - **Ambiente Conteinerizado:** Docker Compose com 4 serviços:
   - `web`: Nginx 1.27 Alpine (porta 8080)
   - `app`: PHP 8.3 FPM com extensões PostgreSQL, `bcmath`, `intl`, `zip`, `pcntl`, `opcache`, `gd`
-  - `db`: PostgreSQL 16 (isolado na rede interna do Docker)
+  - `db`: `pgvector/pgvector:pg16` (PostgreSQL 16 com pgvector nativo)
   - `queue`: Worker de tarefas assíncronas do Laravel
-- **Inteligência Artificial:** Camada desacoplada com múltiplos provedores configuráveis via interface (`AiProviderManager`), com adaptador oficial do **Google Gemini** em JSON Mode e credenciais criptografadas em repouso.
+- **Inteligência Artificial & Busca Vetorial:** Camada desacoplada com múltiplos provedores configuráveis via interface (`AiProviderManager`), com adaptador oficial do **Google Gemini** em JSON Mode, geração de embeddings semânticos (`text-embedding-004`) e credenciais criptografadas em repouso.
 - **Testes Automatizados:** Suíte com PHPUnit 11 executada em banco PostgreSQL dedicado (`decisao_investimento_testing`).
 
 ---
@@ -78,12 +78,14 @@ O seeder criará automaticamente:
 6. **Decisão e Efetivação do Aporte (Módulo Decisões e Aportes):**
    - Na análise gerada, clique em **"Efetivar Aporte"** para registrar a compra das cotas ou ações no home broker.
    - Acesse **Decisões e Aportes ➔ Comparativo de Evolução** para ver a evolução patrimonial mês a mês com o efeito dos novos aportes estritamente separado do rendimento orgânico de mercado.
+7. **Busca Semântica no Histórico (Módulo Análise Mensal):**
+   - Acesse **Análise Mensal ➔ Busca Semântica (pgvector)** para pesquisar temas, justificativas e ideias de aportes passados (ex: *"recomendações focadas em dividendos"*, *"estratégia de reserva"*), ordenados por similaridade de cosseno via embeddings.
 
 ---
 
 ## 🧪 Execução de Testes Automatizados
 
-A aplicação possui 25 testes automatizados cobrindo todas as regras de negócio, parsers CSV/XLSX, diagnóstico financeiro, segurança de credenciais e IA:
+A aplicação possui 31 testes automatizados cobrindo todas as regras de negócio, parsers CSV/XLSX, diagnóstico financeiro, segurança de credenciais, IA e pgvector:
 
 ```bash
 docker compose exec app php artisan test

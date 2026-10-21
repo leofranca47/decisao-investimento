@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\InvestmentAnalysisResource\Pages;
 
+use App\Filament\Pages\SemanticSearchPage;
 use App\Filament\Resources\InvestmentAnalysisResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
@@ -13,6 +14,12 @@ class ListInvestmentAnalyses extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('semanticSearch')
+                ->label('Busca Semântica (pgvector)')
+                ->icon('heroicon-o-cpu-chip')
+                ->color('gray')
+                ->url(SemanticSearchPage::getUrl()),
+
             Actions\CreateAction::make(),
         ];
     }

@@ -64,4 +64,9 @@ class InvestmentAnalysis extends Model
     {
         return $this->hasMany(ExecutedContribution::class);
     }
+
+    public function embeddings(): HasMany
+    {
+        return $this->hasMany(AnalysisEmbedding::class);
+    }
 }

@@ -11,7 +11,9 @@ use App\Models\User;
 use App\Services\Ai\AiProviderManager;
 use App\Services\Diagnosis\PortfolioDiagnosticsService;
 use App\Services\Import\Normalizers\AssetClassNormalizer;
+use App\Services\Semantic\SemanticSearchService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use InvalidArgumentException;
 
@@ -170,6 +172,16 @@ class InvestmentAnalysisService
                     'discarded_alternatives' => $item['discarded_alternatives'] ?? null,
                     'status' => 'pending',
                 ]);
+            }
+
+            // Indexação vetorial semântica opcional (pgvector)
+            try {
+                $semanticService = app(SemanticSearchService::class);
+                if ($semanticService->isAvailable()) {
+                    $semanticService->indexAnalysis($analysis);
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Falha na indexação semântica da análise {$analysis->id}: " . $e->getMessage());
             }
 
             return $analysis;
