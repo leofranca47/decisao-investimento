@@ -67,4 +67,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(AiProviderConfiguration::class);
     }
+
+    public function portfolioImports(): HasMany
+    {
+        return $this->hasMany(PortfolioImport::class);
+    }
 }
