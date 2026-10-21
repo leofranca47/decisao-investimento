@@ -221,7 +221,7 @@ class InvestmentAnalysisTest extends TestCase
         ]);
 
         Http::fake([
-            'https://api.minimax.chat/v1/chat/completions' => Http::response([
+            '*minimax*/v1/chat/completions*' => Http::response([
                 'choices' => [
                     [
                         'message' => [

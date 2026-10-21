@@ -48,12 +48,13 @@ class AiProviderConfigurationResource extends Resource
                         Forms\Components\TextInput::make('model_id')
                             ->label('Identificador do Modelo')
                             ->placeholder(fn (Forms\Get $get): string => match ($get('provider_slug')) {
-                                'minimax' => 'Ex: MiniMax-Text-01',
+                                'minimax' => 'Ex: MiniMax-M2.7-highspeed ou MiniMax-M3.1-Flash',
                                 'opencode' => 'Ex: qwen2.5-coder:14b ou deepseek-coder',
                                 default => 'Ex: gemini-3.5-flash ou gemini-3.7-flash',
                             })
                             ->helperText(fn (Forms\Get $get): ?string => match ($get('provider_slug')) {
                                 'gemini' => 'Modelos recomendados com melhor disponibilidade: gemini-3.5-flash ou gemini-3.7-flash.',
+                                'minimax' => 'Modelos recomendados: MiniMax-M2.7-highspeed (rápido) ou MiniMax-M3.1-Flash.',
                                 default => null,
                             })
                             ->required()

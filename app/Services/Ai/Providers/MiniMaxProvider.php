@@ -118,7 +118,7 @@ class MiniMaxProvider implements AiProviderInterface
         $response = Http::withHeaders([
             'Authorization' => "Bearer {$config->api_key}",
             'Content-Type' => 'application/json',
-        ])->timeout((int) ($options['timeout'] ?? 60))->post($url, $payload);
+        ])->timeout((int) ($options['timeout'] ?? 120))->post($url, $payload);
 
         if (!$response->successful()) {
             $status = $response->status();

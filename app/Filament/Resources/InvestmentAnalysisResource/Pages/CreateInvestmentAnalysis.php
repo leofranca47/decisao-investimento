@@ -47,9 +47,14 @@ class CreateInvestmentAnalysis extends CreateRecord
 
             return $analysis;
         } catch (\Throwable $e) {
-            throw ValidationException::withMessages([
-                'available_amount' => "Erro na execução da análise com IA: {$e->getMessage()}",
-            ]);
+            Notification::make()
+                ->danger()
+                ->title('Erro ao Gerar Análise com IA')
+                ->body($e->getMessage())
+                ->persistent()
+                ->send();
+
+            $this->halt();
         }
     }
 }

@@ -94,16 +94,29 @@ class InvestmentAnalysisService
             config: $aiConfig,
             systemPrompt: $systemPrompt,
             userPrompt: $userPrompt,
-            options: ['json_mode' => true, 'temperature' => 0.2]
+            options: ['json_mode' => true, 'temperature' => 0.2, 'timeout' => 120]
         );
 
-        // 5. Validar e decodificar a resposta estruturada
-        $parsed = json_decode($rawResponse->content, true);
+        // 5. Validar e decodificar a resposta estruturada (com suporte a modelos de reasoning com tags <think>)
+        $cleanContent = preg_replace('/<think>.*?<\/think>/s', '', $rawResponse->content);
+        $cleanContent = trim($cleanContent);
+
+        $parsed = json_decode($cleanContent, true);
 
         if (!is_array($parsed)) {
             // Tenta extrair bloco JSON caso o modelo tenha envolvido em markdown ```json
-            if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $rawResponse->content, $matches)) {
+            if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $cleanContent, $matches)) {
                 $parsed = json_decode($matches[1], true);
+            }
+        }
+
+        if (!is_array($parsed)) {
+            // Tenta isolar entre a primeira chave '{' e a última '}'
+            $firstBrace = strpos($cleanContent, '{');
+            $lastBrace = strrpos($cleanContent, '}');
+            if ($firstBrace !== false && $lastBrace !== false && $lastBrace > $firstBrace) {
+                $jsonSubstring = substr($cleanContent, $firstBrace, $lastBrace - $firstBrace + 1);
+                $parsed = json_decode($jsonSubstring, true);
             }
         }
 
