@@ -101,6 +101,7 @@ class PortfolioImportService
                     'current_price' => $pos->currentPrice,
                     'total_amount' => $pos->totalAmount,
                     'weight_percentage' => $pos->weightPercentage,
+                    'target_percentage' => $pos->targetPercentage,
                     'raw_data' => $pos->rawData,
                 ]);
             }

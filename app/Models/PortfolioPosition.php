@@ -18,6 +18,7 @@ class PortfolioPosition extends Model
         'current_price',
         'total_amount',
         'weight_percentage',
+        'target_percentage',
         'raw_data',
     ];
 
@@ -27,6 +28,7 @@ class PortfolioPosition extends Model
         'current_price' => 'decimal:4',
         'total_amount' => 'decimal:2',
         'weight_percentage' => 'decimal:2',
+        'target_percentage' => 'decimal:2',
         'raw_data' => 'array',
     ];
 

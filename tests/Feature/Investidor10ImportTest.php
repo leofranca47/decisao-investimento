@@ -123,4 +123,34 @@ class Investidor10ImportTest extends TestCase
         $this->assertNotNull($cdb);
         $this->assertEquals(3137.69, (float) $cdb->total_amount); // 1579.31 + 1558.38
     }
+
+    public function test_extracts_target_percentage_and_calculates_weight_percentage_when_missing(): void
+    {
+        $user = User::factory()->create();
+
+        // CSV com % Ideal, mas SEM a coluna % Carteira
+        $csvWithoutWeight = implode("\n", [
+            'Ativo;Nome;Tipo de ativo;Quantidade;Preço Atual;Total;% Ideal',
+            'BBAS3;Banco do Brasil;Ações;100;30,00;3.000,00;10,00%',
+            'HGLG11;CSHG Logística;FIIs;50;140,00;7.000,00;20,00%',
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('carteira_sem_peso.csv', $csvWithoutWeight);
+        $service = app(PortfolioImportService::class);
+
+        $preview = $service->preview($file);
+        $this->assertEquals(10000.00, $preview->totalEquity);
+
+        $import = $service->confirmAndStore($user, $file, '2026-10-21', $preview);
+
+        $bbas = $import->positions()->whereHas('asset', fn ($q) => $q->where('ticker', 'BBAS3'))->first();
+        $this->assertNotNull($bbas);
+        $this->assertEquals(30.00, (float) $bbas->weight_percentage); // 3000 / 10000 * 100
+        $this->assertEquals(10.00, (float) $bbas->target_percentage); // extraído do % Ideal
+
+        $hglg = $import->positions()->whereHas('asset', fn ($q) => $q->where('ticker', 'HGLG11'))->first();
+        $this->assertNotNull($hglg);
+        $this->assertEquals(70.00, (float) $hglg->weight_percentage); // 7000 / 10000 * 100
+        $this->assertEquals(20.00, (float) $hglg->target_percentage);
+    }
 }

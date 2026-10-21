@@ -39,6 +39,22 @@ class InvestmentAnalysisService
         $profile = $user->investorProfile;
         $goals = $user->financialGoals;
 
+        $portfolioAssets = $import->positions()->with('asset')->get()->map(function ($pos) {
+            $currentWeight = (float) $pos->weight_percentage;
+            $targetWeight = $pos->target_percentage !== null ? (float) $pos->target_percentage : null;
+            $gap = $targetWeight !== null ? round($currentWeight - $targetWeight, 2) : null;
+
+            return [
+                'ticker' => $pos->asset->ticker,
+                'name' => $pos->asset->name,
+                'class' => $pos->asset->asset_class,
+                'total_amount' => (float) $pos->total_amount,
+                'current_percentage' => $currentWeight,
+                'target_percentage' => $targetWeight,
+                'gap_percentage' => $gap,
+            ];
+        })->sortBy('current_percentage')->values()->toArray();
+
         $contextData = [
             'available_amount' => $availableAmount,
             'financial_data' => $financialData,
@@ -72,6 +88,7 @@ class InvestmentAnalysisService
                     'gap_amount' => $c->gapAmount,
                     'status' => $c->status,
                 ])->toArray(),
+                'portfolio_assets' => $portfolioAssets,
                 'top_assets' => collect($diagnosis->topAssets)->take(10)->map(fn ($a) => [
                     'ticker' => $a->ticker,
                     'name' => $a->name,
@@ -210,9 +227,10 @@ Sua missão é analisar o retrato da carteira de investimentos do usuário, seus
 REGRAS INEGOCIÁVEIS:
 1. Respeite rigorosamente o valor total do aporte disponível. A soma dos valores sugeridos em `allocations` deve totalizar exatamente o valor informado (ou justifique sobra líquida em reserva se não houver ativos adequados).
 2. Priorize classes e ativos que estejam abaixo da meta de alocação estipulada pelo investidor (gaps negativos), observando restrições de concentração do perfil.
-3. Se a reserva de emergência informada for inferior à meta estipulada, ou houver dívidas caras, aponte nos riscos a necessidade de priorizar liquidez antes de ativos voláteis.
-4. Para cada alocação, forneça justificativa fundamentada, principais riscos e alternativas que foram consideradas e descartadas.
-5. Não invente tickers nem informações inexistentes.
+3. Ao alocar em uma classe de ativos (ex: ações brasileiras ou FIIs), priorize os ativos que o investidor JÁ possui na carteira (`portfolio_assets`) e que estão com menor participação relativa (% atual mais baixo ou defasado em relação ao % ideal/meta), realizando o rebalanceamento dos ativos mais baixos antes de cogitar incluir novos tickers.
+4. Se a reserva de emergência informada for inferior à meta estipulada, ou houver dívidas caras, aponte nos riscos a necessidade de priorizar liquidez antes de ativos voláteis.
+5. Para cada alocação, forneça justificativa fundamentada, principais riscos e alternativas que foram consideradas e descartadas.
+6. Não invente tickers nem informações inexistentes.
 6. A saída DEVE ser estritamente um objeto JSON com o seguinte schema:
 {
   "executive_summary": "Resumo executivo claro e conciso da estratégia de alocação para este aporte.",

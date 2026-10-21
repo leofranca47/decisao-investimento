@@ -90,6 +90,12 @@ class PositionsRelationManager extends RelationManager
                     ->label('% Carteira')
                     ->suffix('%')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('target_percentage')
+                    ->label('% Ideal')
+                    ->suffix('%')
+                    ->placeholder('—')
+                    ->sortable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('asset.asset_class')

@@ -251,4 +251,68 @@ class InvestmentAnalysisTest extends TestCase
         $this->assertEquals(1, $analysis->allocations()->count());
         $this->assertEquals('HGLG11', $analysis->allocations()->first()->ticker_suggested);
     }
+
+    public function test_analysis_provides_all_portfolio_assets_with_percentages_to_ai(): void
+    {
+        [$user, $import, $aiConfig] = $this->createSetup();
+
+        // Atualiza as posições com percentuais e alvos
+        $itubPos = $import->positions()->whereHas('asset', fn ($q) => $q->where('ticker', 'ITUB4'))->first();
+        $itubPos->update(['weight_percentage' => 52.24, 'target_percentage' => 50.00]);
+
+        $hglgPos = $import->positions()->whereHas('asset', fn ($q) => $q->where('ticker', 'HGLG11'))->first();
+        $hglgPos->update(['weight_percentage' => 47.76, 'target_percentage' => 50.00]);
+
+        $capturedUserPrompt = null;
+
+        Http::fake([
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent*' => function ($request) use (&$capturedUserPrompt) {
+                $body = json_decode($request->body(), true);
+                $capturedUserPrompt = $body['contents'][0]['parts'][0]['text'] ?? '';
+
+                $aiProposalJson = json_encode([
+                    'executive_summary' => 'Aporte no ativo mais baixo.',
+                    'priorities' => ['FIIs'],
+                    'allocations' => [
+                        [
+                            'asset_class' => 'fiis',
+                            'ticker' => 'HGLG11',
+                            'suggested_amount' => 1000.00,
+                            'share_percentage' => 100.00,
+                            'reasoning' => 'HGLG11 está abaixo da meta.',
+                        ],
+                    ],
+                    'sources' => [],
+                    'limitations' => [],
+                ]);
+
+                return Http::response([
+                    'candidates' => [
+                        [
+                            'content' => [
+                                'parts' => [
+                                    ['text' => $aiProposalJson],
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200);
+            },
+        ]);
+
+        $service = app(InvestmentAnalysisService::class);
+        $service->runAnalysis(
+            user: $user,
+            import: $import,
+            aiConfig: $aiConfig,
+            availableAmount: 1000.00
+        );
+
+        $this->assertNotNull($capturedUserPrompt);
+        // O prompt deve conter a seção portfolio_assets com os percentuais dos ativos
+        $this->assertStringContainsString('portfolio_assets', $capturedUserPrompt);
+        $this->assertStringContainsString('current_percentage', $capturedUserPrompt);
+        $this->assertStringContainsString('HGLG11', $capturedUserPrompt);
+        $this->assertStringContainsString('ITUB4', $capturedUserPrompt);
+    }
 }

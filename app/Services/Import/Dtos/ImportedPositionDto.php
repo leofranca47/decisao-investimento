@@ -13,6 +13,7 @@ class ImportedPositionDto
         public ?float $currentPrice,
         public float $totalAmount,
         public ?float $weightPercentage = null,
+        public ?float $targetPercentage = null,
         public ?string $sector = null,
         public array $rawData = []
     ) {}

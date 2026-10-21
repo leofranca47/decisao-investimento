@@ -65,7 +65,8 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
             $avgPrice = NumberHelper::parseDecimal($this->extractField($cleanRow, ['preco_medio', 'custo_medio', 'pm']));
             $curPrice = NumberHelper::parseDecimal($this->extractField($cleanRow, ['preco_atual', 'cotacao', 'valor_atual']));
             $total = NumberHelper::parseDecimal($this->extractField($cleanRow, ['saldo', 'total', 'valor_total', 'saldo_bruto', 'posicao']));
-            $percentage = NumberHelper::parseDecimal($this->extractField($cleanRow, ['carteira', 'percentual', 'participacao', 'peso']));
+            $percentage = NumberHelper::parseDecimal($this->extractField($cleanRow, ['carteira', 'percentual', 'participacao', 'peso', 'peso_atual']));
+            $targetPercentage = NumberHelper::parseDecimal($this->extractField($cleanRow, ['ideal', 'percentual_ideal', 'meta', 'peso_ideal', 'target']));
             $sector = $this->extractField($cleanRow, ['setor', 'segmento', 'instituicao']);
 
             if (empty($ticker)) {
@@ -87,6 +88,7 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
                 $newQuantity = $existing->quantity + $quantity;
                 $newTotal = round($existing->totalAmount + $total, 2);
                 $newWeight = ($existing->weightPercentage ?? 0.0) + ($percentage > 0 ? $percentage : 0.0);
+                $newTarget = $targetPercentage > 0 ? $targetPercentage : $existing->targetPercentage;
 
                 $consolidatedPositions[$normalizedTicker] = new ImportedPositionDto(
                     ticker: $normalizedTicker,
@@ -97,6 +99,7 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
                     currentPrice: $curPrice > 0 ? $curPrice : $existing->currentPrice,
                     totalAmount: $newTotal,
                     weightPercentage: $newWeight > 0 ? round($newWeight, 2) : null,
+                    targetPercentage: $newTarget > 0 ? round($newTarget, 2) : null,
                     sector: $existing->sector ?: (!empty($sector) ? $sector : null),
                     rawData: array_merge((array) $existing->rawData, ['additional_rows' => $row])
                 );
@@ -110,12 +113,35 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
                     currentPrice: $curPrice > 0 ? $curPrice : null,
                     totalAmount: $total,
                     weightPercentage: $percentage > 0 ? $percentage : null,
+                    targetPercentage: $targetPercentage > 0 ? $targetPercentage : null,
                     sector: !empty($sector) ? $sector : null,
                     rawData: $row
                 );
             }
 
             $totalEquity += $total;
+        }
+
+        // Garante que todo ativo tenha seu weightPercentage calculado com base no total equity se estiver ausente
+        foreach ($consolidatedPositions as $ticker => $pos) {
+            $weight = $pos->weightPercentage;
+            if ($weight === null || $weight <= 0) {
+                $weight = $totalEquity > 0 ? round(($pos->totalAmount / $totalEquity) * 100, 2) : 0.0;
+            }
+
+            $consolidatedPositions[$ticker] = new ImportedPositionDto(
+                ticker: $pos->ticker,
+                name: $pos->name,
+                assetClass: $pos->assetClass,
+                quantity: $pos->quantity,
+                averagePrice: $pos->averagePrice,
+                currentPrice: $pos->currentPrice,
+                totalAmount: $pos->totalAmount,
+                weightPercentage: $weight,
+                targetPercentage: $pos->targetPercentage,
+                sector: $pos->sector,
+                rawData: $pos->rawData
+            );
         }
 
         $finalPositions = array_values($consolidatedPositions);
