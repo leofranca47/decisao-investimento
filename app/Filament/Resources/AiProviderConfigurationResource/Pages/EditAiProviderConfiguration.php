@@ -20,8 +20,15 @@ class EditAiProviderConfiguration extends EditRecord
                 ->icon('heroicon-o-signal')
                 ->color('info')
                 ->action(function () {
+                    $data = $this->form->getState();
+                    $record = clone $this->record;
+                    $record->fill(collect($data)->except(['api_key'])->toArray());
+                    if (!empty($data['api_key'])) {
+                        $record->api_key = $data['api_key'];
+                    }
+
                     $manager = app(AiProviderManager::class);
-                    $result = $manager->testConnection($this->record);
+                    $result = $manager->testConnection($record);
 
                     if ($result->isSuccessful) {
                         Notification::make()

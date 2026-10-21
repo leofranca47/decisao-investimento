@@ -12,7 +12,7 @@ use RuntimeException;
 
 class MiniMaxProvider implements AiProviderInterface
 {
-    protected string $defaultBaseUrl = 'https://api.minimax.chat/v1';
+    protected string $defaultBaseUrl = 'https://api.minimax.io/v1';
 
     public function getProviderSlug(): string
     {

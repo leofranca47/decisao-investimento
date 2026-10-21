@@ -62,12 +62,12 @@ class AiProviderConfigurationResource extends Resource
                         Forms\Components\TextInput::make('endpoint')
                             ->label('Endpoint Customizado (Opcional)')
                             ->placeholder(fn (Forms\Get $get): string => match ($get('provider_slug')) {
-                                'minimax' => 'https://api.minimax.chat/v1',
+                                'minimax' => 'https://api.minimax.io/v1',
                                 'opencode' => 'http://host.docker.internal:11434/v1',
                                 default => 'https://generativelanguage.googleapis.com/v1beta',
                             })
                             ->helperText(fn (Forms\Get $get): ?string => match ($get('provider_slug')) {
-                                'minimax' => 'Deixe em branco para usar o endpoint oficial (https://api.minimax.chat/v1).',
+                                'minimax' => 'Deixe em branco para o endpoint oficial global (https://api.minimax.io/v1). Se sua conta for da plataforma chinesa, informe https://api.minimax.chat/v1.',
                                 'opencode' => 'Para serviços rodando no computador host (ex: Ollama), utilize http://host.docker.internal:11434/v1.',
                                 default => null,
                             })

@@ -164,7 +164,7 @@ class AiProviderTest extends TestCase
     public function test_minimax_connection_test_success(): void
     {
         Http::fake([
-            'https://api.minimax.chat/v1/chat/completions' => Http::response([
+            'https://api.minimax.io/v1/chat/completions' => Http::response([
                 'choices' => [
                     [
                         'message' => [
@@ -201,7 +201,7 @@ class AiProviderTest extends TestCase
         $expectedJson = json_encode(['executive_summary' => 'Resumo MiniMax']);
 
         Http::fake([
-            'https://api.minimax.chat/v1/chat/completions' => Http::response([
+            'https://api.minimax.io/v1/chat/completions' => Http::response([
                 'choices' => [
                     [
                         'message' => [
