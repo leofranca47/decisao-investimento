@@ -84,4 +84,43 @@ class Investidor10ImportTest extends TestCase
         // Segunda tentativa com mesmo conteúdo
         $this->assertTrue($service->isDuplicateHash($file2));
     }
+
+    public function test_can_import_real_investidor10_csv_format_with_tipo_de_ativo_and_multiple_cdbs(): void
+    {
+        $user = User::factory()->create();
+
+        $realCsv = implode("\n", [
+            'Tipo de ativo;Ativo;Quant.;Preço Médio;Preço Atual;Variação;Rentabilidade;Saldo;Nota;% Carteira;% Ideal;Comprar ?;Tipo',
+            'Ações;BBAS3;83;R$ 20,51;R$ 24,01;17,09%;22,92%;R$ 1.992,83;10;7,50%;5,00%;Não;',
+            'FIIs;HGLG11;12;R$ 156,58;R$ 156,15;-0,27%;10,84%;R$ 1.873,80;10;7,03%;4,17%;Não;',
+            'Renda Fixa;CDB - C6 - Pós-Fixado - 118.5% CDI;;;;57,93%;58,11%;R$ 1.579,31;10;5,92%;0,00%;Não;',
+            'Renda Fixa;CDB - C6 - Pós-Fixado - 118.5% CDI;;;;55,84%;56,02%;R$ 1.558,38;10;5,84%;0,00%;Não;',
+            'Tesouro Direto;Tesouro IPCA+ 2032;1,61;;R$ 3.247,68;10,22%;10,23%;R$ 5.228,76;10;19,61%;25,00%;Sim;',
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('investidor10_real.csv', $realCsv);
+        $service = app(PortfolioImportService::class);
+
+        $preview = $service->preview($file);
+
+        // Deve consolidar os 2 CDBs idênticos em 1 posição de CDB
+        $this->assertEquals(5, $preview->totalRows);
+        $this->assertEquals(4, $preview->acceptedRowsCount);
+        $this->assertEquals(0, $preview->rejectedRowsCount);
+
+        // Verifica se tickers foram extraídos corretamente e não como o tipo
+        $tickers = collect($preview->positions)->pluck('ticker')->toArray();
+        $this->assertContains('BBAS3', $tickers);
+        $this->assertContains('HGLG11', $tickers);
+        $this->assertNotContains('AÇÕES', $tickers);
+        $this->assertNotContains('FIIS', $tickers);
+
+        $import = $service->confirmAndStore($user, $file, '2026-10-21', $preview);
+
+        $this->assertEquals(4, $import->positions()->count());
+
+        $cdb = $import->positions()->whereHas('asset', fn ($q) => $q->where('ticker', 'like', '%CDB - C6%'))->first();
+        $this->assertNotNull($cdb);
+        $this->assertEquals(3137.69, (float) $cdb->total_amount); // 1579.31 + 1558.38
+    }
 }

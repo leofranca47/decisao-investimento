@@ -7,6 +7,7 @@ use App\Services\Import\Dtos\ImportedPositionDto;
 use App\Services\Import\Dtos\ImportPreviewDto;
 use App\Services\Import\Helpers\NumberHelper;
 use App\Services\Import\Normalizers\AssetClassNormalizer;
+use Illuminate\Support\Str;
 use OpenSpout\Reader\XLSX\Reader;
 
 class Investidor10ExcelImporter implements PortfolioImporterInterface
@@ -26,7 +27,8 @@ class Investidor10ExcelImporter implements PortfolioImporterInterface
         }
 
         $headers = [];
-        $positions = [];
+        /** @var array<string, ImportedPositionDto> $consolidatedPositions */
+        $consolidatedPositions = [];
         $errors = [];
         $warnings = [];
         $totalRows = 0;
@@ -50,14 +52,14 @@ class Investidor10ExcelImporter implements PortfolioImporterInterface
                     $mappedRow[$colKey] = isset($cells[$colIdx]) ? (string) $cells[$colIdx] : '';
                 }
 
-                $ticker = $this->extractField($mappedRow, ['ticker', 'codigo', 'ativo', 'papel']);
+                $ticker = $this->extractField($mappedRow, ['ativo', 'ticker', 'codigo', 'papel'], ['tipo', 'classe', 'categoria']);
                 $name = $this->extractField($mappedRow, ['nome', 'descricao', 'empresa', 'fundo']) ?: $ticker;
-                $rawClass = $this->extractField($mappedRow, ['tipo', 'classe', 'categoria', 'tipo_do_ativo']);
-                $quantity = NumberHelper::parseDecimal($this->extractField($mappedRow, ['quantidade', 'qtd', 'cotas']));
+                $rawClass = $this->extractField($mappedRow, ['tipo_de_ativo', 'tipo_do_ativo', 'tipo', 'classe', 'categoria']);
+                $quantity = NumberHelper::parseDecimal($this->extractField($mappedRow, ['quant', 'quantidade', 'qtd', 'cotas']));
                 $avgPrice = NumberHelper::parseDecimal($this->extractField($mappedRow, ['preco_medio', 'custo_medio', 'pm']));
                 $curPrice = NumberHelper::parseDecimal($this->extractField($mappedRow, ['preco_atual', 'cotacao', 'valor_atual']));
-                $total = NumberHelper::parseDecimal($this->extractField($mappedRow, ['total', 'valor_total', 'saldo', 'saldo_bruto', 'posicao']));
-                $percentage = NumberHelper::parseDecimal($this->extractField($mappedRow, ['percentual', 'carteira', 'participacao', 'peso']));
+                $total = NumberHelper::parseDecimal($this->extractField($mappedRow, ['saldo', 'total', 'valor_total', 'saldo_bruto', 'posicao']));
+                $percentage = NumberHelper::parseDecimal($this->extractField($mappedRow, ['carteira', 'percentual', 'participacao', 'peso']));
                 $sector = $this->extractField($mappedRow, ['setor', 'segmento', 'instituicao']);
 
                 if (empty($ticker)) {
@@ -70,19 +72,41 @@ class Investidor10ExcelImporter implements PortfolioImporterInterface
                 }
 
                 $normalizedClass = AssetClassNormalizer::normalize($rawClass);
+                $normalizedTicker = strtoupper(trim($ticker));
 
-                $positions[] = new ImportedPositionDto(
-                    ticker: strtoupper($ticker),
-                    name: $name,
-                    assetClass: $normalizedClass,
-                    quantity: $quantity,
-                    averagePrice: $avgPrice > 0 ? $avgPrice : null,
-                    currentPrice: $curPrice > 0 ? $curPrice : null,
-                    totalAmount: $total,
-                    weightPercentage: $percentage > 0 ? $percentage : null,
-                    sector: !empty($sector) ? $sector : null,
-                    rawData: $mappedRow
-                );
+                // Consolidação por ativo caso haja múltiplos registros do mesmo título
+                if (isset($consolidatedPositions[$normalizedTicker])) {
+                    $existing = $consolidatedPositions[$normalizedTicker];
+                    $newQuantity = $existing->quantity + $quantity;
+                    $newTotal = round($existing->totalAmount + $total, 2);
+                    $newWeight = ($existing->weightPercentage ?? 0.0) + ($percentage > 0 ? $percentage : 0.0);
+
+                    $consolidatedPositions[$normalizedTicker] = new ImportedPositionDto(
+                        ticker: $normalizedTicker,
+                        name: $existing->name ?: $name,
+                        assetClass: $existing->assetClass !== 'outros' ? $existing->assetClass : $normalizedClass,
+                        quantity: $newQuantity,
+                        averagePrice: $existing->averagePrice ?: $avgPrice,
+                        currentPrice: $curPrice > 0 ? $curPrice : $existing->currentPrice,
+                        totalAmount: $newTotal,
+                        weightPercentage: $newWeight > 0 ? round($newWeight, 2) : null,
+                        sector: $existing->sector ?: (!empty($sector) ? $sector : null),
+                        rawData: array_merge((array) $existing->rawData, ['additional_rows' => $mappedRow])
+                    );
+                } else {
+                    $consolidatedPositions[$normalizedTicker] = new ImportedPositionDto(
+                        ticker: $normalizedTicker,
+                        name: $name,
+                        assetClass: $normalizedClass,
+                        quantity: $quantity,
+                        averagePrice: $avgPrice > 0 ? $avgPrice : null,
+                        currentPrice: $curPrice > 0 ? $curPrice : null,
+                        totalAmount: $total,
+                        weightPercentage: $percentage > 0 ? $percentage : null,
+                        sector: !empty($sector) ? $sector : null,
+                        rawData: $mappedRow
+                    );
+                }
 
                 $totalEquity += $total;
             }
@@ -91,10 +115,12 @@ class Investidor10ExcelImporter implements PortfolioImporterInterface
 
         $reader->close();
 
+        $finalPositions = array_values($consolidatedPositions);
+
         return new ImportPreviewDto(
-            positions: $positions,
+            positions: $finalPositions,
             totalRows: $totalRows,
-            acceptedRowsCount: count($positions),
+            acceptedRowsCount: count($finalPositions),
             rejectedRowsCount: count($errors),
             totalEquity: round($totalEquity, 2),
             errors: $errors,
@@ -105,20 +131,45 @@ class Investidor10ExcelImporter implements PortfolioImporterInterface
     private function normalizeHeaderKey(string $key): string
     {
         $key = mb_strtolower(trim($key));
-        $key = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $key) ?: $key;
+        $key = Str::ascii($key);
         $key = preg_replace('/[^a-z0-9_]/', '_', $key);
         return trim((string) preg_replace('/_+/', '_', (string) $key), '_');
     }
 
-    private function extractField(array $row, array $possibleKeys): ?string
+    private function extractField(array $row, array $possibleKeys, array $excludeIfContains = []): ?string
     {
+        // 1. Tenta correspondência exata primeiro
+        foreach ($possibleKeys as $key) {
+            if (isset($row[$key]) && filled($row[$key])) {
+                return trim((string) $row[$key]);
+            }
+        }
+
+        // 2. Tenta correspondência parcial respeitando exclusões
         foreach ($possibleKeys as $key) {
             foreach ($row as $col => $val) {
-                if (str_contains($col, $key) && filled($val)) {
-                    return $val;
+                if (!filled($val)) {
+                    continue;
+                }
+
+                $shouldExclude = false;
+                foreach ($excludeIfContains as $exclude) {
+                    if (str_contains($col, $exclude)) {
+                        $shouldExclude = true;
+                        break;
+                    }
+                }
+
+                if ($shouldExclude) {
+                    continue;
+                }
+
+                if (str_contains($col, $key)) {
+                    return trim((string) $val);
                 }
             }
         }
+
         return null;
     }
 }

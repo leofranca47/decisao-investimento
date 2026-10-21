@@ -7,6 +7,7 @@ use App\Services\Import\Dtos\ImportedPositionDto;
 use App\Services\Import\Dtos\ImportPreviewDto;
 use App\Services\Import\Helpers\NumberHelper;
 use App\Services\Import\Normalizers\AssetClassNormalizer;
+use Illuminate\Support\Str;
 use League\Csv\Reader;
 
 class Investidor10CsvImporter implements PortfolioImporterInterface
@@ -43,7 +44,8 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
 
         $headers = array_map(fn ($h) => $this->normalizeHeaderKey((string) $h), $reader->getHeader());
 
-        $positions = [];
+        /** @var array<string, ImportedPositionDto> $consolidatedPositions */
+        $consolidatedPositions = [];
         $errors = [];
         $warnings = [];
         $totalRows = 0;
@@ -56,14 +58,14 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
                 $cleanRow[$this->normalizeHeaderKey((string) $k)] = trim((string) $v);
             }
 
-            $ticker = $this->extractField($cleanRow, ['ticker', 'codigo', 'ativo', 'papel']);
+            $ticker = $this->extractField($cleanRow, ['ativo', 'ticker', 'codigo', 'papel'], ['tipo', 'classe', 'categoria']);
             $name = $this->extractField($cleanRow, ['nome', 'descricao', 'empresa', 'fundo']) ?: $ticker;
-            $rawClass = $this->extractField($cleanRow, ['tipo', 'classe', 'categoria', 'tipo_do_ativo']);
-            $quantity = NumberHelper::parseDecimal($this->extractField($cleanRow, ['quantidade', 'qtd', 'cotas']));
+            $rawClass = $this->extractField($cleanRow, ['tipo_de_ativo', 'tipo_do_ativo', 'tipo', 'classe', 'categoria']);
+            $quantity = NumberHelper::parseDecimal($this->extractField($cleanRow, ['quant', 'quantidade', 'qtd', 'cotas']));
             $avgPrice = NumberHelper::parseDecimal($this->extractField($cleanRow, ['preco_medio', 'custo_medio', 'pm']));
             $curPrice = NumberHelper::parseDecimal($this->extractField($cleanRow, ['preco_atual', 'cotacao', 'valor_atual']));
-            $total = NumberHelper::parseDecimal($this->extractField($cleanRow, ['total', 'valor_total', 'saldo', 'saldo_bruto', 'posicao']));
-            $percentage = NumberHelper::parseDecimal($this->extractField($cleanRow, ['percentual', 'carteira', 'participacao', 'peso']));
+            $total = NumberHelper::parseDecimal($this->extractField($cleanRow, ['saldo', 'total', 'valor_total', 'saldo_bruto', 'posicao']));
+            $percentage = NumberHelper::parseDecimal($this->extractField($cleanRow, ['carteira', 'percentual', 'participacao', 'peso']));
             $sector = $this->extractField($cleanRow, ['setor', 'segmento', 'instituicao']);
 
             if (empty($ticker)) {
@@ -77,27 +79,51 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
             }
 
             $normalizedClass = AssetClassNormalizer::normalize($rawClass);
+            $normalizedTicker = strtoupper(trim($ticker));
 
-            $positions[] = new ImportedPositionDto(
-                ticker: strtoupper($ticker),
-                name: $name,
-                assetClass: $normalizedClass,
-                quantity: $quantity,
-                averagePrice: $avgPrice > 0 ? $avgPrice : null,
-                currentPrice: $curPrice > 0 ? $curPrice : null,
-                totalAmount: $total,
-                weightPercentage: $percentage > 0 ? $percentage : null,
-                sector: !empty($sector) ? $sector : null,
-                rawData: $row
-            );
+            // Consolidação por ativo caso o arquivo traga múltiplas linhas do mesmo título (ex: CDBs ou compras parciais)
+            if (isset($consolidatedPositions[$normalizedTicker])) {
+                $existing = $consolidatedPositions[$normalizedTicker];
+                $newQuantity = $existing->quantity + $quantity;
+                $newTotal = round($existing->totalAmount + $total, 2);
+                $newWeight = ($existing->weightPercentage ?? 0.0) + ($percentage > 0 ? $percentage : 0.0);
+
+                $consolidatedPositions[$normalizedTicker] = new ImportedPositionDto(
+                    ticker: $normalizedTicker,
+                    name: $existing->name ?: $name,
+                    assetClass: $existing->assetClass !== 'outros' ? $existing->assetClass : $normalizedClass,
+                    quantity: $newQuantity,
+                    averagePrice: $existing->averagePrice ?: $avgPrice,
+                    currentPrice: $curPrice > 0 ? $curPrice : $existing->currentPrice,
+                    totalAmount: $newTotal,
+                    weightPercentage: $newWeight > 0 ? round($newWeight, 2) : null,
+                    sector: $existing->sector ?: (!empty($sector) ? $sector : null),
+                    rawData: array_merge((array) $existing->rawData, ['additional_rows' => $row])
+                );
+            } else {
+                $consolidatedPositions[$normalizedTicker] = new ImportedPositionDto(
+                    ticker: $normalizedTicker,
+                    name: $name,
+                    assetClass: $normalizedClass,
+                    quantity: $quantity,
+                    averagePrice: $avgPrice > 0 ? $avgPrice : null,
+                    currentPrice: $curPrice > 0 ? $curPrice : null,
+                    totalAmount: $total,
+                    weightPercentage: $percentage > 0 ? $percentage : null,
+                    sector: !empty($sector) ? $sector : null,
+                    rawData: $row
+                );
+            }
 
             $totalEquity += $total;
         }
 
+        $finalPositions = array_values($consolidatedPositions);
+
         return new ImportPreviewDto(
-            positions: $positions,
+            positions: $finalPositions,
             totalRows: $totalRows,
-            acceptedRowsCount: count($positions),
+            acceptedRowsCount: count($finalPositions),
             rejectedRowsCount: count($errors),
             totalEquity: round($totalEquity, 2),
             errors: $errors,
@@ -108,20 +134,45 @@ class Investidor10CsvImporter implements PortfolioImporterInterface
     private function normalizeHeaderKey(string $key): string
     {
         $key = mb_strtolower(trim($key));
-        $key = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $key) ?: $key;
+        $key = Str::ascii($key);
         $key = preg_replace('/[^a-z0-9_]/', '_', $key);
         return trim((string) preg_replace('/_+/', '_', (string) $key), '_');
     }
 
-    private function extractField(array $row, array $possibleKeys): ?string
+    private function extractField(array $row, array $possibleKeys, array $excludeIfContains = []): ?string
     {
+        // 1. Tenta correspondência exata primeiro
+        foreach ($possibleKeys as $key) {
+            if (isset($row[$key]) && filled($row[$key])) {
+                return trim((string) $row[$key]);
+            }
+        }
+
+        // 2. Tenta correspondência parcial respeitando exclusões
         foreach ($possibleKeys as $key) {
             foreach ($row as $col => $val) {
-                if (str_contains($col, $key) && filled($val)) {
-                    return $val;
+                if (!filled($val)) {
+                    continue;
+                }
+
+                $shouldExclude = false;
+                foreach ($excludeIfContains as $exclude) {
+                    if (str_contains($col, $exclude)) {
+                        $shouldExclude = true;
+                        break;
+                    }
+                }
+
+                if ($shouldExclude) {
+                    continue;
+                }
+
+                if (str_contains($col, $key)) {
+                    return trim((string) $val);
                 }
             }
         }
+
         return null;
     }
 }
