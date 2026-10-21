@@ -1,32 +1,27 @@
 # 📈 Assistente Pessoal de Decisão de Investimentos
 
-Aplicação web pessoal para apoio à decisão de alocação mensal de aportes financeiros entre ações brasileiras, fundos imobiliários (FIIs), Tesouro Direto, ETFs internacionais e outras classes, integrando diagnóstico quantitativo determinístico no backend e inteligência artificial fundamentada (Google Gemini).
+Aplicação web pessoal para apoio à decisão de alocação mensal de aportes financeiros entre ações brasileiras, fundos imobiliários (FIIs), Tesouro Direto, ETFs internacionais e outras classes de ativos, integrando diagnóstico quantitativo determinístico no backend e inteligência artificial fundamentada (Google Gemini).
 
 ---
 
-## 🚀 Tecnologias
+## 🛠️ Tecnologias & Arquitetura
 
 - **Backend:** Laravel 11 (PHP 8.3)
-- **Painel & Interface:** Filament v3
-- **Banco de Dados Principal:** PostgreSQL 16 (com tipos `numeric/decimal` para precisão financeira e `jsonb` para metadados)
-- **Ambiente Conteinerizado:** Docker Compose (`app`, `web` Nginx 1.27, `db` PostgreSQL 16, `queue`)
-- **Provedores de IA:** Arquitetura desacoplada e configurável via interface Filament com criptografia de credenciais em repouso
-- **Testes Automatizados:** PHPUnit 11
+- **Painel & Interface:** Filament v3 (recursos e páginas nativas em português)
+- **Banco de Dados Principal:** PostgreSQL 16 (com tipos `decimal/numeric` para precisão financeira e `jsonb` para metadados)
+- **Ambiente Conteinerizado:** Docker Compose com 4 serviços:
+  - `web`: Nginx 1.27 Alpine (porta 8080)
+  - `app`: PHP 8.3 FPM com extensões PostgreSQL, `bcmath`, `intl`, `zip`, `pcntl`, `opcache`, `gd`
+  - `db`: PostgreSQL 16 (isolado na rede interna do Docker)
+  - `queue`: Worker de tarefas assíncronas do Laravel
+- **Inteligência Artificial:** Camada desacoplada com múltiplos provedores configuráveis via interface (`AiProviderManager`), com adaptador oficial do **Google Gemini** em JSON Mode e credenciais criptografadas em repouso.
+- **Testes Automatizados:** Suíte com PHPUnit 11 executada em banco PostgreSQL dedicado (`decisao_investimento_testing`).
 
 ---
 
-## 📋 Pré-requisitos
+## 🚀 Como Inicializar o Projeto
 
-- [Docker](https://docs.docker.com/engine/install/) (versão 24+)
-- [Docker Compose](https://docs.docker.com/compose/install/) (v2+)
-
-Não é necessário ter PHP, Composer ou PostgreSQL instalados no host.
-
----
-
-## 🛠️ Inicialização Rápida
-
-### 1. Clonar e preparar variáveis de ambiente
+### 1. Clonar e preparar o arquivo `.env`
 
 ```bash
 cp .env.example .env
@@ -38,99 +33,88 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Os serviços serão iniciados:
-- **web:** `http://localhost:8080` (Nginx)
-- **app:** PHP 8.3 FPM com extensões PostgreSQL, `bcmath`, `intl`, `zip`, `pcntl`, `opcache`
-- **db:** PostgreSQL 16 (porta 5432 na rede interna do Docker)
-- **queue:** Worker de filas assíncronas do Laravel
-
-### 3. Instalar dependências e gerar chave da aplicação
+### 3. Instalar dependências e chave da aplicação
 
 ```bash
 docker compose exec app composer install
 docker compose exec app php artisan key:generate
 ```
 
-### 4. Executar Migrations e Seeds iniciais
+### 4. Executar Migrations e Seeder Inicial
 
 ```bash
 docker compose exec app php artisan migrate --seed
 ```
 
-> **Credenciais do Usuário Padrão gerado pelo Seed:**
-> - **E-mail:** `admin@invest.local`
-> - **Senha:** `password`
-> - **Acesso ao Painel:** `http://localhost:8080/admin`
+O seeder criará automaticamente:
+- **Usuário Padrão:**
+  - **E-mail:** `admin@invest.local`
+  - **Senha:** `password`
+- **Acesso ao Painel:** `http://localhost:8080/admin`
+- Perfil inicial equilibrado (15 anos de horizonte, limite de 15% por ativo e 30% por setor).
+- Metas de alocação por classe totalizando 100% (Ações BR: 35%, FIIs: 30%, Tesouro Direto: 20%, ETFs Internacionais: 15%).
+- Objetivo financeiro inicial de Independência Financeira.
 
-Para criar um novo usuário administrador interativamente:
-```bash
-docker compose exec app php artisan make:filament-user
-```
+---
+
+## 🧭 Roteiro de Uso do Sistema (Fluxo Mensal Completo)
+
+1. **Ajuste de Metas e Perfil (Módulo Planejamento):**
+   - Acesse **Planejamento ➔ Metas de Alocação** para ajustar seus percentuais por classe (a soma deve ser 100%).
+   - Acesse **Planejamento ➔ Perfil de Investidor** para definir seu horizonte, reserva de emergência alvo e teto de concentração por ativo.
+2. **Configuração da IA (Módulo Configurações):**
+   - Acesse **Configurações ➔ Provedores de IA** e cadastre sua chave de API do Google Gemini.
+   - Clique em **"Testar Conexão"** para validar a chave e a latência com a API oficial sem expor a credencial.
+3. **Importação do Investidor10 (Módulo Carteira):**
+   - Acesse **Carteira ➔ Importações de Carteira** e clique em **"Criar"**.
+   - Envie o arquivo exportado do Investidor10 (`.csv` ou `.xlsx`) informando a data de referência.
+   - O sistema detecta cabeçalhos, normaliza moedas e tickers, e salva o retrato imutável.
+4. **Visualização do Diagnóstico Determinístico:**
+   - Na tela da importação, visualize instantaneamente os cards de patrimônio, maior ativo e a tabela de desvios (gaps % e gaps financeiros em R$) calculados pelo backend, sem depender de IA.
+5. **Solicitação de Análise Mensal (Módulo Análise Mensal):**
+   - Acesse **Análise Mensal ➔ Nova Análise**.
+   - Selecione a carteira importada, o modelo de IA e informe o valor disponível para aportar no mês, situação da reserva de emergência e dívidas.
+   - A IA processa o diagnóstico e retorna uma proposta estruturada com valores por ativo, justificativas, riscos, fontes e alternativas descartadas.
+6. **Decisão e Efetivação do Aporte (Módulo Decisões e Aportes):**
+   - Na análise gerada, clique em **"Efetivar Aporte"** para registrar a compra das cotas ou ações no home broker.
+   - Acesse **Decisões e Aportes ➔ Comparativo de Evolução** para ver a evolução patrimonial mês a mês com o efeito dos novos aportes estritamente separado do rendimento orgânico de mercado.
 
 ---
 
 ## 🧪 Execução de Testes Automatizados
 
-Para executar a suíte completa de testes no container:
+A aplicação possui 25 testes automatizados cobrindo todas as regras de negócio, parsers CSV/XLSX, diagnóstico financeiro, segurança de credenciais e IA:
 
 ```bash
 docker compose exec app php artisan test
 ```
 
-Para rodar um teste específico:
-
-```bash
-docker compose exec app php artisan test --filter=AllocationTargetTest
-```
+Os testes são executados contra o banco PostgreSQL dedicado `decisao_investimento_testing`, garantindo que os dados de desenvolvimento e produção local **nunca** sejam apagados.
 
 ---
 
-## 📊 Estrutura e Funcionalidades (Fase 1)
+## 🔒 Segurança & Boas Práticas
 
-1. **Objetivos Financeiros (`FinancialGoal`):** Cadastro de objetivos com valor alvo, valor acumulado, prazo, prioridade e necessidade de liquidez.
-2. **Perfil de Investidor (`InvestorProfile`):** Configuração de perfil de risco, horizonte predominante, meta de reserva de emergência, limites de concentração por ativo/setor e classes permitidas.
-3. **Metas de Alocação (`AllocationTarget`):** Metas percentuais por classe de ativos com validação de soma totalizando 100% (`AllocationTargetService`).
-4. **Provedores de IA (`AiProviderConfiguration`):** Cadastro e gerenciamento de múltiplos provedores e modelos (iniciando com Google Gemini), com armazenamento seguro da chave de API criptografada em repouso (`Crypt::encryptString`) e exibição mascarada na UI.
+- **Criptografia em Repouso:** A coluna `api_key` na tabela `ai_provider_configurations` é criptografada com a chave `APP_KEY` do Laravel (`casts => ['api_key' => 'encrypted']`) e oculta da serialização JSON (`$hidden = ['api_key']`).
+- **Arquivos Privados:** Planilhas e relatórios são salvos no storage privado do Laravel (`storage/app/private/imports/`) e nunca expostos na pasta pública do servidor web.
+- **Precisão Financeira:** Todas as colunas financeiras utilizam tipos `decimal(14,2)` ou `decimal(14,4)` no PostgreSQL, prevenindo perdas de precisão por ponto flutuante.
+- **Prevenção de Duplicatas:** Cada importação gera um hash SHA-256 para alertar sobre arquivos idênticos enviados em duplicidade.
 
 ---
 
-## 🔧 Comandos Operacionais & Manutenção
+## 🔧 Manutenção e Operação
 
-### Visualizar Logs em tempo real
-
+### Visualizar Logs em Tempo Real
 ```bash
-# Todos os serviços
-docker compose logs -f
-
-# Apenas a aplicação Laravel
 docker compose logs -f app
-
-# Worker de fila
-docker compose logs -f queue
-```
-
-### Parar os containers preservando os dados
-
-```bash
-docker compose down
 ```
 
 ### Backup do Banco de Dados PostgreSQL
-
 ```bash
 docker compose exec db pg_dump -U invest_user decisao_investimento > backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
-### Restauração do Banco de Dados PostgreSQL
-
+### Restaurar Banco de Dados PostgreSQL
 ```bash
 cat backup_arquivo.sql | docker compose exec -T db psql -U invest_user decisao_investimento
 ```
-
----
-
-## 🔒 Segurança
-
-- As chaves de API cadastradas na interface são gravadas com criptografia de envelope do Laravel (`casts => ['api_key' => 'encrypted']`) e mascaradas na listagem e edição.
-- A porta do PostgreSQL não é exposta publicamente no host, operando exclusivamente na bridge interna do Docker Compose.
-- Valores monetários e percentuais utilizam representação decimal exata, prevenindo distorções de ponto flutuante.

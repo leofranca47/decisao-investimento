@@ -31,6 +31,20 @@ class AiProviderConfiguration extends Model
         'is_default' => 'boolean',
     ];
 
+    /**
+     * Oculta a credencial de qualquer serialização JSON/Array.
+     */
+    protected $hidden = [
+        'api_key',
+    ];
+
+    /**
+     * Inclui a chave mascarada segura nas serializações.
+     */
+    protected $appends = [
+        'masked_api_key',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

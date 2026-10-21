@@ -27,6 +27,14 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->brandName('Assistente de Investimentos')
+            ->navigationGroups([
+                'Carteira',
+                'Planejamento',
+                'Análise Mensal',
+                'Decisões e Aportes',
+                'Configurações',
+            ])
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -36,10 +44,7 @@ class AdminPanelProvider extends PanelProvider
                 Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
-            ])
+            ->widgets([])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
