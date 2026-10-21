@@ -191,4 +191,64 @@ class InvestmentAnalysisTest extends TestCase
             financialData: []
         );
     }
+
+    public function test_can_run_analysis_with_minimax_provider(): void
+    {
+        [$user, $import] = $this->createSetup();
+
+        $minimaxConfig = AiProviderConfiguration::create([
+            'name' => 'MiniMax Text 01 Production',
+            'provider_slug' => 'minimax',
+            'model_id' => 'MiniMax-Text-01',
+            'api_key' => 'minimax_key_test_123',
+            'is_active' => true,
+        ]);
+
+        $aiProposalJson = json_encode([
+            'executive_summary' => 'Análise realizada com sucesso via MiniMax Text 01.',
+            'priorities' => ['Rebalanceamento com FIIs'],
+            'allocations' => [
+                [
+                    'asset_class' => 'fiis',
+                    'ticker' => 'HGLG11',
+                    'suggested_amount' => 2000.00,
+                    'share_percentage' => 100.00,
+                    'reasoning' => 'Aumento de posição em galpões logísticos de primeira linha.',
+                ],
+            ],
+            'sources' => ['Relatório de Fundos Imobiliários'],
+            'limitations' => [],
+        ]);
+
+        Http::fake([
+            'https://api.minimax.chat/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => $aiProposalJson,
+                        ],
+                    ],
+                ],
+                'usage' => [
+                    'total_tokens' => 120,
+                ],
+            ], 200),
+        ]);
+
+        $service = app(InvestmentAnalysisService::class);
+
+        $analysis = $service->runAnalysis(
+            user: $user,
+            import: $import,
+            aiConfig: $minimaxConfig,
+            availableAmount: 2000.00
+        );
+
+        $this->assertInstanceOf(InvestmentAnalysis::class, $analysis);
+        $this->assertEquals('minimax', $analysis->provider_used);
+        $this->assertEquals('MiniMax-Text-01', $analysis->model_used);
+        $this->assertEquals(1, $analysis->allocations()->count());
+        $this->assertEquals('HGLG11', $analysis->allocations()->first()->ticker_suggested);
+    }
 }

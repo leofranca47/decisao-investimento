@@ -6,6 +6,8 @@ use App\Models\AiProviderConfiguration;
 use App\Services\Ai\Contracts\AiProviderInterface;
 use App\Services\Ai\Dtos\AiConnectionTestResult;
 use App\Services\Ai\Providers\GeminiProvider;
+use App\Services\Ai\Providers\MiniMaxProvider;
+use App\Services\Ai\Providers\OpenCodeProvider;
 use InvalidArgumentException;
 
 class AiProviderManager
@@ -15,9 +17,14 @@ class AiProviderManager
      */
     protected array $providers = [];
 
-    public function __construct(GeminiProvider $geminiProvider)
-    {
+    public function __construct(
+        GeminiProvider $geminiProvider,
+        MiniMaxProvider $miniMaxProvider,
+        OpenCodeProvider $openCodeProvider
+    ) {
         $this->registerProvider($geminiProvider);
+        $this->registerProvider($miniMaxProvider);
+        $this->registerProvider($openCodeProvider);
     }
 
     public function registerProvider(AiProviderInterface $provider): void

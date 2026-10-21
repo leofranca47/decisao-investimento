@@ -14,7 +14,7 @@ Aplicação web pessoal para apoio à decisão de alocação mensal de aportes f
   - `app`: PHP 8.3 FPM com extensões PostgreSQL, `bcmath`, `intl`, `zip`, `pcntl`, `opcache`, `gd`
   - `db`: `pgvector/pgvector:pg16` (PostgreSQL 16 com pgvector nativo)
   - `queue`: Worker de tarefas assíncronas do Laravel
-- **Inteligência Artificial & Busca Vetorial:** Camada desacoplada com múltiplos provedores configuráveis via interface (`AiProviderManager`), com adaptador oficial do **Google Gemini** em JSON Mode, geração de embeddings semânticos (`text-embedding-004`) e credenciais criptografadas em repouso.
+- **Inteligência Artificial & Busca Vetorial:** Camada desacoplada com múltiplos provedores configuráveis via interface (`AiProviderManager`), com adaptadores oficiais para **Google Gemini** (JSON Mode e embeddings semânticos `text-embedding-004`), **MiniMax** (`MiniMax-Text-01` via endpoint `/v1/chat/completions`) e **OpenCode / OpenAI-Compatible** (servidores locais como Ollama, LM Studio ou endpoints remotos), com credenciais criptografadas em repouso.
 - **Testes Automatizados:** Suíte com PHPUnit 11 executada em banco PostgreSQL dedicado (`decisao_investimento_testing`).
 
 ---
@@ -85,7 +85,7 @@ O seeder criará automaticamente:
 
 ## 🧪 Execução de Testes Automatizados
 
-A aplicação possui 31 testes automatizados cobrindo todas as regras de negócio, parsers CSV/XLSX, diagnóstico financeiro, segurança de credenciais, IA e pgvector:
+A aplicação possui 37 testes automatizados cobrindo todas as regras de negócio, parsers CSV/XLSX, diagnóstico financeiro, segurança de credenciais, provedores de IA (Gemini, MiniMax, OpenCode) e pgvector:
 
 ```bash
 docker compose exec app php artisan test

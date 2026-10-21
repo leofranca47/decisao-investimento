@@ -148,6 +148,141 @@ class AiProviderTest extends TestCase
         $provider = $manager->getProvider('gemini');
 
         $this->assertInstanceOf(GeminiProvider::class, $provider);
-        $this->assertEquals('gemini', $provider->getProviderSlug());
+    }
+
+    public function test_ai_provider_manager_resolves_minimax_and_opencode_drivers(): void
+    {
+        $manager = app(AiProviderManager::class);
+
+        $minimax = $manager->getProvider('minimax');
+        $this->assertEquals('minimax', $minimax->getProviderSlug());
+
+        $opencode = $manager->getProvider('opencode');
+        $this->assertEquals('opencode', $opencode->getProviderSlug());
+    }
+
+    public function test_minimax_connection_test_success(): void
+    {
+        Http::fake([
+            'https://api.minimax.chat/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => 'pong',
+                        ],
+                    ],
+                ],
+                'usage' => [
+                    'prompt_tokens' => 2,
+                    'completion_tokens' => 1,
+                    'total_tokens' => 3,
+                ],
+            ], 200),
+        ]);
+
+        $config = AiProviderConfiguration::create([
+            'name' => 'MiniMax Text 01',
+            'provider_slug' => 'minimax',
+            'model_id' => 'MiniMax-Text-01',
+            'api_key' => 'minimax_secret_key_123',
+            'is_active' => true,
+        ]);
+
+        $manager = app(AiProviderManager::class);
+        $result = $manager->testConnection($config);
+
+        $this->assertTrue($result->isSuccessful);
+        $this->assertStringContainsString('MiniMax-Text-01', $result->message);
+    }
+
+    public function test_minimax_generate_content_success(): void
+    {
+        $expectedJson = json_encode(['executive_summary' => 'Resumo MiniMax']);
+
+        Http::fake([
+            'https://api.minimax.chat/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => $expectedJson,
+                        ],
+                    ],
+                ],
+                'usage' => [
+                    'prompt_tokens' => 20,
+                    'completion_tokens' => 15,
+                    'total_tokens' => 35,
+                ],
+            ], 200),
+        ]);
+
+        $config = AiProviderConfiguration::create([
+            'name' => 'MiniMax Text 01',
+            'provider_slug' => 'minimax',
+            'model_id' => 'MiniMax-Text-01',
+            'api_key' => 'minimax_secret_key_123',
+            'is_active' => true,
+        ]);
+
+        $manager = app(AiProviderManager::class);
+        $provider = $manager->getProvider('minimax');
+
+        $response = $provider->generate(
+            config: $config,
+            systemPrompt: 'System prompt',
+            userPrompt: 'User prompt',
+            options: ['json_mode' => true]
+        );
+
+        $this->assertEquals($expectedJson, $response->content);
+        $this->assertEquals('MiniMax-Text-01', $response->modelUsed);
+        $this->assertEquals(35, $response->tokensUsed['total']);
+    }
+
+    public function test_opencode_connection_test_and_generate_success(): void
+    {
+        $customEndpoint = 'http://host.docker.internal:11434/v1';
+
+        Http::fake([
+            $customEndpoint . '/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => json_encode(['executive_summary' => 'Resumo OpenCode']),
+                        ],
+                    ],
+                ],
+                'usage' => [
+                    'total_tokens' => 42,
+                ],
+            ], 200),
+        ]);
+
+        $config = AiProviderConfiguration::create([
+            'name' => 'OpenCode Local Qwen 2.5',
+            'provider_slug' => 'opencode',
+            'model_id' => 'qwen2.5-coder:14b',
+            'endpoint' => $customEndpoint,
+            'api_key' => 'dummy_or_local_key',
+            'is_active' => true,
+        ]);
+
+        $manager = app(AiProviderManager::class);
+        $result = $manager->testConnection($config);
+
+        $this->assertTrue($result->isSuccessful);
+
+        $provider = $manager->getProvider('opencode');
+        $response = $provider->generate(
+            config: $config,
+            systemPrompt: 'System',
+            userPrompt: 'User'
+        );
+
+        $this->assertStringContainsString('Resumo OpenCode', $response->content);
+        $this->assertEquals('qwen2.5-coder:14b', $response->modelUsed);
     }
 }

@@ -38,21 +38,35 @@ class AiProviderConfigurationResource extends Resource
                             ->label('Provedor')
                             ->options([
                                 'gemini' => 'Google Gemini (Oficial)',
-                                'openai' => 'OpenAI',
-                                'anthropic' => 'Anthropic Claude',
+                                'minimax' => 'MiniMax (Oficial / OpenAI Compatible)',
+                                'opencode' => 'OpenCode / OpenAI-Compatible (Local ou Remoto)',
                             ])
                             ->default('gemini')
-                            ->required(),
+                            ->required()
+                            ->live(),
 
                         Forms\Components\TextInput::make('model_id')
                             ->label('Identificador do Modelo')
-                            ->placeholder('Ex: gemini-1.5-pro ou gemini-1.5-flash')
+                            ->placeholder(fn (Forms\Get $get): string => match ($get('provider_slug')) {
+                                'minimax' => 'Ex: MiniMax-Text-01',
+                                'opencode' => 'Ex: qwen2.5-coder:14b ou deepseek-coder',
+                                default => 'Ex: gemini-1.5-pro ou gemini-1.5-flash',
+                            })
                             ->required()
                             ->maxLength(100),
 
                         Forms\Components\TextInput::make('endpoint')
                             ->label('Endpoint Customizado (Opcional)')
-                            ->placeholder('https://...')
+                            ->placeholder(fn (Forms\Get $get): string => match ($get('provider_slug')) {
+                                'minimax' => 'https://api.minimax.chat/v1',
+                                'opencode' => 'http://host.docker.internal:11434/v1',
+                                default => 'https://generativelanguage.googleapis.com/v1beta',
+                            })
+                            ->helperText(fn (Forms\Get $get): ?string => match ($get('provider_slug')) {
+                                'minimax' => 'Deixe em branco para usar o endpoint oficial (https://api.minimax.chat/v1).',
+                                'opencode' => 'Para serviços rodando no computador host (ex: Ollama), utilize http://host.docker.internal:11434/v1.',
+                                default => null,
+                            })
                             ->maxLength(255),
                     ])->columns(2),
 
@@ -62,7 +76,10 @@ class AiProviderConfigurationResource extends Resource
                             ->label('Chave de API (Criptografada em Repouso)')
                             ->password()
                             ->revealable()
-                            ->helperText('A chave é criptografada no PostgreSQL e nunca exposta em logs ou respostas públicas.')
+                            ->helperText(fn (Forms\Get $get): string => match ($get('provider_slug')) {
+                                'opencode' => 'Chave de autenticação Bearer. Se o servidor local não exigir senha, você pode preencher com qualquer texto.',
+                                default => 'A chave é criptografada no PostgreSQL e nunca exposta em logs ou respostas públicas.',
+                            })
                             ->required(fn (string $operation): bool => $operation === 'create')
                             ->dehydrated(fn ($state) => filled($state)),
 
@@ -104,9 +121,15 @@ class AiProviderConfigurationResource extends Resource
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'gemini' => 'info',
-                        'openai' => 'success',
-                        'anthropic' => 'warning',
+                        'minimax' => 'warning',
+                        'opencode' => 'success',
                         default => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'gemini' => 'Google Gemini',
+                        'minimax' => 'MiniMax',
+                        'opencode' => 'OpenCode',
+                        default => ucfirst($state),
                     })
                     ->sortable(),
 
