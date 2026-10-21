@@ -73,8 +73,15 @@ class GeminiProvider implements AiProviderInterface
                 );
             }
 
+            if ($status === 503 || str_contains($rawErrorMsg, 'high demand') || str_contains($rawErrorMsg, 'UNAVAILABLE')) {
+                return AiConnectionTestResult::failure(
+                    message: "O modelo '{$config->model_id}' está temporariamente com alta demanda no Google (Status 503). Recomendado utilizar 'gemini-3.5-flash' ou 'gemini-3.7-flash'.",
+                    errorCode: 'MODEL_HIGH_DEMAND'
+                );
+            }
+
             return AiConnectionTestResult::failure(
-                message: "Falha na comunicação com o Google Gemini (Status {$status}).",
+                message: "Falha na comunicação com o Google Gemini (Status {$status})." . ($rawErrorMsg ? " Detalhes: {$rawErrorMsg}" : ''),
                 errorCode: 'HTTP_ERROR'
             );
         } catch (ConnectionException $e) {

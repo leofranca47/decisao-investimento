@@ -50,7 +50,11 @@ class AiProviderConfigurationResource extends Resource
                             ->placeholder(fn (Forms\Get $get): string => match ($get('provider_slug')) {
                                 'minimax' => 'Ex: MiniMax-Text-01',
                                 'opencode' => 'Ex: qwen2.5-coder:14b ou deepseek-coder',
-                                default => 'Ex: gemini-1.5-pro ou gemini-1.5-flash',
+                                default => 'Ex: gemini-3.5-flash ou gemini-3.7-flash',
+                            })
+                            ->helperText(fn (Forms\Get $get): ?string => match ($get('provider_slug')) {
+                                'gemini' => 'Modelos recomendados com melhor disponibilidade: gemini-3.5-flash ou gemini-3.7-flash.',
+                                default => null,
                             })
                             ->required()
                             ->maxLength(100),
