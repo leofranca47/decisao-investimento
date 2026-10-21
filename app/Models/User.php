@@ -77,4 +77,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(InvestmentAnalysis::class);
     }
+
+    public function executedContributions(): HasMany
+    {
+        return $this->hasMany(ExecutedContribution::class);
+    }
 }

@@ -27,4 +27,9 @@ class Asset extends Model
     {
         return $this->hasMany(PortfolioPosition::class);
     }
+
+    public function executedContributions(): HasMany
+    {
+        return $this->hasMany(ExecutedContribution::class);
+    }
 }

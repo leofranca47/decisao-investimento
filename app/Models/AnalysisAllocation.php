@@ -38,4 +38,9 @@ class AnalysisAllocation extends Model
     {
         return $this->belongsTo(Asset::class);
     }
+
+    public function executedContributions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ExecutedContribution::class);
+    }
 }

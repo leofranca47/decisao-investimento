@@ -113,6 +113,70 @@ class AllocationsRelationManager extends RelationManager
             ->filters([])
             ->headerActions([])
             ->actions([
+                Tables\Actions\Action::make('executeContribution')
+                    ->label('Efetivar Aporte')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->form([
+                        Forms\Components\TextInput::make('amount')
+                            ->label('Valor Efetivamente Investido (R$)')
+                            ->numeric()
+                            ->prefix('R$')
+                            ->default(fn (AnalysisAllocation $record) => $record->suggested_amount)
+                            ->required(),
+                        Forms\Components\DatePicker::make('execution_date')
+                            ->label('Data da Compra / Aplicação')
+                            ->default(now())
+                            ->required(),
+                        Forms\Components\TextInput::make('quantity')
+                            ->label('Quantidade / Cotas Compradas')
+                            ->numeric(),
+                        Forms\Components\TextInput::make('unit_price')
+                            ->label('Preço Unitário Pago (R$)')
+                            ->numeric()
+                            ->prefix('R$'),
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Observações da Execução')
+                            ->placeholder('Ex: Comprado pelo home broker com preço ligeiramente melhor.'),
+                    ])
+                    ->action(function (AnalysisAllocation $record, array $data) {
+                        $asset = $record->asset;
+                        if (!$asset && !empty($record->ticker_suggested)) {
+                            $asset = \App\Models\Asset::firstOrCreate(
+                                ['ticker' => $record->ticker_suggested],
+                                ['name' => $record->ticker_suggested, 'asset_class' => $record->asset_class]
+                            );
+                        }
+
+                        if (!$asset) {
+                            \Filament\Notifications\Notification::make()
+                                ->danger()
+                                ->title('Não foi possível identificar o ativo para registrar o aporte.')
+                                ->send();
+                            return;
+                        }
+
+                        \App\Models\ExecutedContribution::create([
+                            'user_id' => $record->investmentAnalysis->user_id,
+                            'investment_analysis_id' => $record->investment_analysis_id,
+                            'analysis_allocation_id' => $record->id,
+                            'asset_id' => $asset->id,
+                            'amount' => (float) $data['amount'],
+                            'quantity' => !empty($data['quantity']) ? (float) $data['quantity'] : null,
+                            'unit_price' => !empty($data['unit_price']) ? (float) $data['unit_price'] : null,
+                            'execution_date' => $data['execution_date'],
+                            'notes' => $data['notes'] ?? null,
+                        ]);
+
+                        $record->update(['status' => 'accepted']);
+
+                        \Filament\Notifications\Notification::make()
+                            ->success()
+                            ->title('Aporte registrado com sucesso!')
+                            ->body("Valor de R$ " . number_format($data['amount'], 2, ',', '.') . " registrado para {$asset->ticker}.")
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make()->label('Decidir'),
             ])
             ->bulkActions([]);

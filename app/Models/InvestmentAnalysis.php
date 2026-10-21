@@ -59,4 +59,9 @@ class InvestmentAnalysis extends Model
     {
         return $this->hasMany(AnalysisAllocation::class);
     }
+
+    public function executedContributions(): HasMany
+    {
+        return $this->hasMany(ExecutedContribution::class);
+    }
 }
