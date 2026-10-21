@@ -53,19 +53,36 @@ class SemanticSearchService
         }
 
         $baseUrl = !empty($config->endpoint) ? rtrim($config->endpoint, '/') : 'https://generativelanguage.googleapis.com/v1beta';
-        $url = "{$baseUrl}/models/text-embedding-004:embedContent";
+        $url = "{$baseUrl}/models/gemini-embedding-001:embedContent";
 
         $response = Http::withHeaders([
             'x-goog-api-key' => $config->api_key,
             'Content-Type' => 'application/json',
         ])->timeout(30)->post($url, [
-            'model' => 'models/text-embedding-004',
+            'model' => 'models/gemini-embedding-001',
             'content' => [
                 'parts' => [
                     ['text' => $text],
                 ],
             ],
+            'outputDimensionality' => self::EMBEDDING_DIMENSION,
         ]);
+
+        if (!$response->successful()) {
+            // Fallback para text-embedding-004 caso gemini-embedding-001 não exista
+            $fallbackUrl = "{$baseUrl}/models/text-embedding-004:embedContent";
+            $response = Http::withHeaders([
+                'x-goog-api-key' => $config->api_key,
+                'Content-Type' => 'application/json',
+            ])->timeout(30)->post($fallbackUrl, [
+                'model' => 'models/text-embedding-004',
+                'content' => [
+                    'parts' => [
+                        ['text' => $text],
+                    ],
+                ],
+            ]);
+        }
 
         if (!$response->successful()) {
             $status = $response->status();

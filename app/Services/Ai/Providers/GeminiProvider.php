@@ -22,34 +22,59 @@ class GeminiProvider implements AiProviderInterface
     public function testConnection(AiProviderConfiguration $config): AiConnectionTestResult
     {
         $startTime = microtime(true);
+        $url = $this->buildUrl($config);
+        $maxAttempts = 3;
+        $attempt = 0;
+        $response = null;
 
         try {
-            $url = $this->buildUrl($config);
-            $response = Http::withHeaders([
-                'x-goog-api-key' => $config->api_key,
-                'Content-Type' => 'application/json',
-            ])->timeout(10)->post($url, [
-                'contents' => [
-                    [
-                        'role' => 'user',
-                        'parts' => [
-                            ['text' => 'ping'],
+            while ($attempt < $maxAttempts) {
+                $attempt++;
+                try {
+                    $response = Http::withHeaders([
+                        'x-goog-api-key' => $config->api_key,
+                        'Content-Type' => 'application/json',
+                    ])->timeout(10)->post($url, [
+                        'contents' => [
+                            [
+                                'role' => 'user',
+                                'parts' => [
+                                    ['text' => 'ping'],
+                                ],
+                            ],
                         ],
-                    ],
-                ],
-            ]);
+                    ]);
+
+                    if ($response->successful()) {
+                        break;
+                    }
+
+                    // Se for 503 ou 429, aguarda e tenta novamente
+                    if (($response->status() === 503 || $response->status() === 429) && $attempt < $maxAttempts) {
+                        usleep(1000000 * $attempt);
+                        continue;
+                    }
+
+                    break;
+                } catch (ConnectionException $e) {
+                    if ($attempt >= $maxAttempts) {
+                        throw $e;
+                    }
+                    usleep(1000000 * $attempt);
+                }
+            }
 
             $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
 
-            if ($response->successful()) {
+            if ($response && $response->successful()) {
                 return AiConnectionTestResult::success(
                     latencyMs: $latencyMs,
                     message: "Conexão realizada com sucesso com o modelo '{$config->model_id}' ({$latencyMs}ms)."
                 );
             }
 
-            $status = $response->status();
-            $body = $response->json();
+            $status = $response ? $response->status() : 500;
+            $body = $response ? $response->json() : [];
             $rawErrorMsg = $body['error']['message'] ?? '';
 
             if ($status === 400 || $status === 403 || str_contains($rawErrorMsg, 'API key not valid')) {
@@ -59,23 +84,23 @@ class GeminiProvider implements AiProviderInterface
                 );
             }
 
-            if ($status === 404 || str_contains($rawErrorMsg, 'not found')) {
+            if ($status === 404 || str_contains($rawErrorMsg, 'not found') || str_contains($rawErrorMsg, 'no longer available')) {
                 return AiConnectionTestResult::failure(
-                    message: "Modelo '{$config->model_id}' não encontrado para a API do Google Gemini.",
+                    message: "Modelo '{$config->model_id}' não encontrado ou indisponível. Recomendado: 'gemini-3.5-flash' ou 'gemini-flash-lite-latest'.",
                     errorCode: 'MODEL_NOT_FOUND'
                 );
             }
 
             if ($status === 429) {
                 return AiConnectionTestResult::failure(
-                    message: "Limite de requisições (Rate Limit) da API do Google Gemini excedido.",
+                    message: "Limite de requisições da API do Google Gemini excedido.",
                     errorCode: 'RATE_LIMIT_EXCEEDED'
                 );
             }
 
             if ($status === 503 || str_contains($rawErrorMsg, 'high demand') || str_contains($rawErrorMsg, 'UNAVAILABLE')) {
                 return AiConnectionTestResult::failure(
-                    message: "O modelo '{$config->model_id}' está temporariamente com alta demanda no Google (Status 503). Recomendado utilizar 'gemini-3.5-flash' ou 'gemini-3.7-flash'.",
+                    message: "O modelo '{$config->model_id}' está com alta demanda transitória no Google (Status 503). Recomendado utilizar 'gemini-3.5-flash'.",
                     errorCode: 'MODEL_HIGH_DEMAND'
                 );
             }
@@ -135,14 +160,40 @@ class GeminiProvider implements AiProviderInterface
             $payload['generationConfig']['maxOutputTokens'] = (int) $options['max_tokens'];
         }
 
-        $response = Http::withHeaders([
-            'x-goog-api-key' => $config->api_key,
-            'Content-Type' => 'application/json',
-        ])->timeout((int) ($options['timeout'] ?? 60))->post($url, $payload);
+        $maxAttempts = 3;
+        $attempt = 0;
+        $response = null;
 
-        if (!$response->successful()) {
-            $status = $response->status();
-            $body = $response->json();
+        while ($attempt < $maxAttempts) {
+            $attempt++;
+            try {
+                $response = Http::withHeaders([
+                    'x-goog-api-key' => $config->api_key,
+                    'Content-Type' => 'application/json',
+                ])->timeout((int) ($options['timeout'] ?? 60))->post($url, $payload);
+
+                if ($response->successful()) {
+                    break;
+                }
+
+                // Se for 503 (alta demanda transitória) ou 429, aguarda com backoff exponencial e tenta de novo
+                if (($response->status() === 503 || $response->status() === 429) && $attempt < $maxAttempts) {
+                    usleep(1500000 * $attempt);
+                    continue;
+                }
+
+                break;
+            } catch (ConnectionException $e) {
+                if ($attempt >= $maxAttempts) {
+                    throw $e;
+                }
+                usleep(1500000 * $attempt);
+            }
+        }
+
+        if (!$response || !$response->successful()) {
+            $status = $response ? $response->status() : 500;
+            $body = $response ? $response->json() : [];
             $errorMsg = $body['error']['message'] ?? 'Erro desconhecido retornado pela API.';
             throw new RuntimeException("Falha na geração do Gemini (Status {$status}): {$errorMsg}");
         }
