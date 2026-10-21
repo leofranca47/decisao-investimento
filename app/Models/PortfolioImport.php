@@ -42,6 +42,11 @@ class PortfolioImport extends Model
         return $this->hasMany(PortfolioPosition::class);
     }
 
+    public function investmentAnalyses(): HasMany
+    {
+        return $this->hasMany(InvestmentAnalysis::class);
+    }
+
     public function getTotalEquityAttribute(): float
     {
         return (float) $this->positions()->sum('total_amount');

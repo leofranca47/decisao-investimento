@@ -72,4 +72,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(PortfolioImport::class);
     }
+
+    public function investmentAnalyses(): HasMany
+    {
+        return $this->hasMany(InvestmentAnalysis::class);
+    }
 }
