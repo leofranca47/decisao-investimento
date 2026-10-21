@@ -40,6 +40,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret_invest_pass}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-testing-db.sql:/docker-entrypoint-initdb.d/init-testing-db.sql:ro
     networks:
       - invest_network
     healthcheck:
