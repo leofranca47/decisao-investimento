@@ -136,7 +136,47 @@ class AiProviderConfigurationResource extends Resource
                     ->label('Ativos'),
             ])
             ->actions([
+                Tables\Actions\Action::make('testConnection')
+                    ->label('Testar Conexão')
+                    ->icon('heroicon-o-signal')
+                    ->color('info')
+                    ->action(function (AiProviderConfiguration $record) {
+                        $manager = app(\App\Services\Ai\AiProviderManager::class);
+                        $result = $manager->testConnection($record);
+
+                        if ($result->isSuccessful) {
+                            \Filament\Notifications\Notification::make()
+                                ->success()
+                                ->title('Conexão bem-sucedida!')
+                                ->body($result->message)
+                                ->send();
+                        } else {
+                            \Filament\Notifications\Notification::make()
+                                ->danger()
+                                ->title('Falha na conexão com a IA')
+                                ->body($result->message)
+                                ->send();
+                        }
+                    }),
+
+                Tables\Actions\Action::make('setDefault')
+                    ->label('Tornar Padrão')
+                    ->icon('heroicon-o-star')
+                    ->color('warning')
+                    ->visible(fn (AiProviderConfiguration $record): bool => !$record->is_default)
+                    ->action(function (AiProviderConfiguration $record) {
+                        AiProviderConfiguration::where('id', '!=', $record->id)->update(['is_default' => false]);
+                        $record->update(['is_default' => true]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->success()
+                            ->title('Provedor definido como padrão!')
+                            ->body("'{$record->name}' agora é o modelo padrão para novas análises.")
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
