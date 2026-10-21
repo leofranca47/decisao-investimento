@@ -2,8 +2,12 @@
 
 namespace App\Filament\Resources\InvestmentAnalysisResource\RelationManagers;
 
+use App\Models\AnalysisAllocation;
+use App\Models\Asset;
+use App\Models\ExecutedContribution;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -117,12 +121,15 @@ class AllocationsRelationManager extends RelationManager
                     ->label('Efetivar Aporte')
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
+                    ->modalHeading(fn (AnalysisAllocation $record) => "Efetivar Aporte — " . ($record->ticker_suggested ?: ucfirst($record->asset_class)))
+                    ->modalDescription('Informe o valor e os dados reais executados na sua corretora para este ativo.')
                     ->form([
                         Forms\Components\TextInput::make('amount')
                             ->label('Valor Efetivamente Investido (R$)')
                             ->numeric()
                             ->prefix('R$')
                             ->default(fn (AnalysisAllocation $record) => $record->suggested_amount)
+                            ->helperText('Valor real liquidado (pré-preenchido com a sugestão, ajuste conforme executado).')
                             ->required(),
                         Forms\Components\DatePicker::make('execution_date')
                             ->label('Data da Compra / Aplicação')
@@ -130,9 +137,11 @@ class AllocationsRelationManager extends RelationManager
                             ->required(),
                         Forms\Components\TextInput::make('quantity')
                             ->label('Quantidade / Cotas Compradas')
+                            ->helperText('Opcional. Ex: 10 cotas, 100 ações.')
                             ->numeric(),
                         Forms\Components\TextInput::make('unit_price')
                             ->label('Preço Unitário Pago (R$)')
+                            ->helperText('Opcional. Preço por cota/ação.')
                             ->numeric()
                             ->prefix('R$'),
                         Forms\Components\Textarea::make('notes')
@@ -142,21 +151,21 @@ class AllocationsRelationManager extends RelationManager
                     ->action(function (AnalysisAllocation $record, array $data) {
                         $asset = $record->asset;
                         if (!$asset && !empty($record->ticker_suggested)) {
-                            $asset = \App\Models\Asset::firstOrCreate(
+                            $asset = Asset::firstOrCreate(
                                 ['ticker' => $record->ticker_suggested],
                                 ['name' => $record->ticker_suggested, 'asset_class' => $record->asset_class]
                             );
                         }
 
                         if (!$asset) {
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->danger()
                                 ->title('Não foi possível identificar o ativo para registrar o aporte.')
                                 ->send();
                             return;
                         }
 
-                        \App\Models\ExecutedContribution::create([
+                        ExecutedContribution::create([
                             'user_id' => $record->investmentAnalysis->user_id,
                             'investment_analysis_id' => $record->investment_analysis_id,
                             'analysis_allocation_id' => $record->id,
@@ -170,10 +179,10 @@ class AllocationsRelationManager extends RelationManager
 
                         $record->update(['status' => 'accepted']);
 
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->success()
                             ->title('Aporte registrado com sucesso!')
-                            ->body("Valor de R$ " . number_format($data['amount'], 2, ',', '.') . " registrado para {$asset->ticker}.")
+                            ->body("Valor real de R$ " . number_format($data['amount'], 2, ',', '.') . " registrado para {$asset->ticker}.")
                             ->send();
                     }),
 
