@@ -247,4 +247,66 @@ class ExecutedContributionTest extends TestCase
 
         $this->assertEquals('accepted', $allocation->fresh()->status);
     }
+
+    public function test_can_execute_contribution_action_with_brazilian_currency_mask_string(): void
+    {
+        $user = User::factory()->create();
+        $asset = Asset::create(['ticker' => 'BBAS3', 'name' => 'Banco do Brasil', 'asset_class' => 'acoes_br']);
+
+        $import = PortfolioImport::create([
+            'user_id' => $user->id,
+            'reference_date' => '2026-10-01',
+            'file_path' => 'imports/test.csv',
+            'file_hash' => hash('sha256', 'test_rm_mask_action'),
+            'original_filename' => 'test.csv',
+            'status' => 'completed',
+        ]);
+
+        $analysis = InvestmentAnalysis::create([
+            'user_id' => $user->id,
+            'portfolio_import_id' => $import->id,
+            'provider_used' => 'gemini',
+            'model_used' => 'gemini-3.5-flash',
+            'available_amount' => 1500.00,
+            'status' => 'completed',
+        ]);
+
+        $allocation = AnalysisAllocation::create([
+            'investment_analysis_id' => $analysis->id,
+            'asset_id' => $asset->id,
+            'asset_class' => 'acoes_br',
+            'ticker_suggested' => 'BBAS3',
+            'suggested_amount' => 1500.00,
+            'share_percentage' => 100.00,
+            'reasoning' => 'Rebalanceamento de BBAS3',
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user);
+
+        Livewire::test(AllocationsRelationManager::class, [
+            'ownerRecord' => $analysis,
+            'pageClass' => ViewInvestmentAnalysis::class,
+        ])
+        ->mountTableAction('executeContribution', $allocation)
+        ->setTableActionData([
+            'amount' => '1.540,80',
+            'execution_date' => '2026-10-23',
+            'quantity' => 50,
+            'unit_price' => '30,81',
+            'notes' => 'Executado com máscara brasileira.',
+        ])
+        ->callMountedTableAction()
+        ->assertHasNoTableActionErrors();
+
+        $this->assertDatabaseHas('executed_contributions', [
+            'user_id' => $user->id,
+            'analysis_allocation_id' => $allocation->id,
+            'amount' => 1540.80,
+            'unit_price' => 30.81,
+            'quantity' => 50.0000,
+        ]);
+
+        $this->assertEquals('accepted', $allocation->fresh()->status);
+    }
 }

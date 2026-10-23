@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\FinancialGoalResource\Pages;
+use App\Filament\Components\MoneyInput;
 use App\Models\FinancialGoal;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -42,16 +43,12 @@ class FinancialGoalResource extends Resource
                             ->label('Data / Horizonte Estimado')
                             ->displayFormat('d/m/Y'),
 
-                        Forms\Components\TextInput::make('target_amount')
+                        MoneyInput::make('target_amount')
                             ->label('Valor Alvo (R$)')
-                            ->numeric()
-                            ->prefix('R$')
                             ->required(),
 
-                        Forms\Components\TextInput::make('current_amount')
+                        MoneyInput::make('current_amount')
                             ->label('Valor Já Acumulado (R$)')
-                            ->numeric()
-                            ->prefix('R$')
                             ->default(0.00),
 
                         Forms\Components\Select::make('priority')

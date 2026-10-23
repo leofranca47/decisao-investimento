@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\InvestmentAnalysisResource\RelationManagers;
 
+use App\Filament\Components\MoneyInput;
 use App\Models\AnalysisAllocation;
 use App\Models\Asset;
 use App\Models\ExecutedContribution;
@@ -29,7 +30,7 @@ class AllocationsRelationManager extends RelationManager
                 Forms\Components\TextInput::make('ticker_suggested')
                     ->label('Ticker')
                     ->disabled(),
-                Forms\Components\TextInput::make('suggested_amount')
+                MoneyInput::make('suggested_amount')
                     ->label('Valor Sugerido')
                     ->disabled(),
                 Forms\Components\Select::make('status')
@@ -124,10 +125,8 @@ class AllocationsRelationManager extends RelationManager
                     ->modalHeading(fn (AnalysisAllocation $record) => "Efetivar Aporte — " . ($record->ticker_suggested ?: ucfirst($record->asset_class)))
                     ->modalDescription('Informe o valor e os dados reais executados na sua corretora para este ativo.')
                     ->form([
-                        Forms\Components\TextInput::make('amount')
+                        MoneyInput::make('amount')
                             ->label('Valor Efetivamente Investido (R$)')
-                            ->numeric()
-                            ->prefix('R$')
                             ->default(fn (AnalysisAllocation $record) => $record->suggested_amount)
                             ->helperText('Valor real liquidado (pré-preenchido com a sugestão, ajuste conforme executado).')
                             ->required(),
@@ -139,11 +138,9 @@ class AllocationsRelationManager extends RelationManager
                             ->label('Quantidade / Cotas Compradas')
                             ->helperText('Opcional. Ex: 10 cotas, 100 ações.')
                             ->numeric(),
-                        Forms\Components\TextInput::make('unit_price')
+                        MoneyInput::make('unit_price')
                             ->label('Preço Unitário Pago (R$)')
-                            ->helperText('Opcional. Preço por cota/ação.')
-                            ->numeric()
-                            ->prefix('R$'),
+                            ->helperText('Opcional. Preço por cota/ação.'),
                         Forms\Components\Textarea::make('notes')
                             ->label('Observações da Execução')
                             ->placeholder('Ex: Comprado pelo home broker com preço ligeiramente melhor.'),

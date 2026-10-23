@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\InvestorProfileResource\Pages;
+use App\Filament\Components\MoneyInput;
 use App\Models\InvestorProfile;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -61,10 +62,8 @@ class InvestorProfileResource extends Resource
                             ->default('balanced')
                             ->required(),
 
-                        Forms\Components\TextInput::make('liquidity_reserve_target')
+                        MoneyInput::make('liquidity_reserve_target')
                             ->label('Meta de Reserva de Emergência (R$)')
-                            ->numeric()
-                            ->prefix('R$')
                             ->default(0.00),
                     ])->columns(2),
 

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ExecutedContributionResource\Pages;
+use App\Filament\Components\MoneyInput;
 use App\Models\Asset;
 use App\Models\ExecutedContribution;
 use App\Models\InvestmentAnalysis;
@@ -47,20 +48,16 @@ class ExecutedContributionResource extends Resource
                             ->default(now())
                             ->required(),
 
-                        Forms\Components\TextInput::make('amount')
+                        MoneyInput::make('amount')
                             ->label('Valor Total Investido (R$)')
-                            ->numeric()
-                            ->prefix('R$')
                             ->required(),
 
                         Forms\Components\TextInput::make('quantity')
                             ->label('Quantidade / Cotas')
                             ->numeric(),
 
-                        Forms\Components\TextInput::make('unit_price')
-                            ->label('Preço Unitário Pago (R$)')
-                            ->numeric()
-                            ->prefix('R$'),
+                        MoneyInput::make('unit_price')
+                            ->label('Preço Unitário Pago (R$)'),
 
                         Forms\Components\Select::make('investment_analysis_id')
                             ->label('Análise de Referência (Opcional)')

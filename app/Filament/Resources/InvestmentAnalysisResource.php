@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\InvestmentAnalysisResource\Pages;
 use App\Filament\Resources\InvestmentAnalysisResource\RelationManagers\AllocationsRelationManager;
+use App\Filament\Components\MoneyInput;
 use App\Models\AiProviderConfiguration;
 use App\Models\InvestmentAnalysis;
 use App\Models\PortfolioImport;
@@ -63,23 +64,17 @@ class InvestmentAnalysisResource extends Resource
                 Forms\Components\Section::make('2. Situação Financeira do Mês e Aporte')
                     ->description('Informe as condições financeiras reais para que a IA calibre a necessidade de liquidez e risco.')
                     ->schema([
-                        Forms\Components\TextInput::make('available_amount')
+                        MoneyInput::make('available_amount')
                             ->label('Valor Disponível para Aportar (R$)')
-                            ->numeric()
-                            ->prefix('R$')
                             ->required()
                             ->helperText('A IA distribuirá exatamente este montante entre as classes e ativos prioritários.'),
 
-                        Forms\Components\TextInput::make('emergency_reserve_amount')
+                        MoneyInput::make('emergency_reserve_amount')
                             ->label('Reserva de Emergência Atual (R$)')
-                            ->numeric()
-                            ->prefix('R$')
                             ->helperText('Se estiver abaixo da meta, a IA alertará a priorização de liquidez.'),
 
-                        Forms\Components\TextInput::make('upcoming_expenses')
-                            ->label('Despesas Previstas de Curto Prazo (R$)')
-                            ->numeric()
-                            ->prefix('R$'),
+                        MoneyInput::make('upcoming_expenses')
+                            ->label('Despesas Previstas de Curto Prazo (R$)'),
 
                         Forms\Components\Toggle::make('has_debts')
                             ->label('Possui Dívidas Ativas no Momento?')
