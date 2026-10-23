@@ -1,0 +1,55 @@
+# Override de PRODUÇÃO para decisao-investimento.
+#
+# Usado via:
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+#
+# Diferenças em relação ao compose.yaml base:
+# - O serviço `db` (Postgres em container) é DESATIVADO. O banco roda no
+#   Postgres nativo da VPS (16.15) com pgvector 0.6.0 instalado. Isso evita
+#   duplicar dados e mantém um único ponto de backup/gerência.
+# - `app`, `queue` e `web` apontam para o Postgres nativo via
+#   host.docker.internal (host-gateway).
+# - `web` publica apenas em 127.0.0.1:9004 — o Caddy faz o TLS e o proxy
+#   público para invest.lgfsoft.com.br.
+# - `!override` é usado em `ports` para substituir a lista do compose base
+#   (que exporia a porta 8080 publicamente).
+
+services:
+  app:
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_PORT=5432
+      - DB_DATABASE=decisao_investimento
+      - DB_USERNAME=invest_user
+      - DB_PASSWORD=${DB_PASSWORD}
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_URL=https://invest.lgfsoft.com.br
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on: !reset []
+
+  queue:
+    environment:
+      - DB_HOST=host.docker.internal
+      - DB_PORT=5432
+      - DB_DATABASE=decisao_investimento
+      - DB_USERNAME=invest_user
+      - DB_PASSWORD=${DB_PASSWORD}
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_URL=https://invest.lgfsoft.com.br
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on: !reset []
+
+  web:
+    ports: !override
+      - "127.0.0.1:9004:80"
+    depends_on:
+      - app
+
+  db:
+    # Desativado em produção: o Postgres nativo da VPS é usado no lugar.
+    profiles: !override
+      - dev-only
